@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Possession Play: Brasileirão</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="bg-pattern"></div>
+
+  <!-- Minimal Top Bar: 4 Game Modes + Shuffle Board -->
+  <header class="top-nav">
+    <div class="mode-pills" role="tablist">
+      <button class="mode-btn active" data-mode="ai" title="Jogar contra a Inteligência Artificial">
+        🤖 vs IA
+      </button>
+      <button class="mode-btn" data-mode="local" title="2 Jogadores na mesma tela">
+        👥 Mesma Tela
+      </button>
+      <button class="mode-btn" data-mode="daily" title="Desafio Diário: Pontuação máxima no menor número de jogadas">
+        🌟 Desafio Diário
+      </button>
+      <button class="mode-btn" data-mode="online" title="Gerar ou entrar com código de sala online">
+        🌐 Jogar Online
+      </button>
+    </div>
+
+    <div class="nav-right">
+      <!-- AI Difficulty Selector (Only visible in vs IA mode) -->
+      <select id="ai-difficulty" class="difficulty-select" title="Nível da IA">
+        <option value="easy">IA: Fácil</option>
+        <option value="medium">IA: Médio</option>
+        <option value="hard" selected>IA: Difícil</option>
+      </select>
+
+      <!-- Online Room Pill (Only visible when in Online Room) -->
+      <div id="online-room-badge" class="online-room-badge" hidden>
+        <span>SALA: <strong id="active-room-code">----</strong></span>
+        <button id="btn-copy-code" class="btn-mini-copy" title="Copiar código da partida">Copiar</button>
+      </div>
+
+      <!-- Post-Match Review Button (Appears after match ends if modal is closed) -->
+      <button id="btn-open-analysis" class="btn-icon-action btn-analysis-top" hidden>
+        📊 Rever Jogadas
+      </button>
+
+      <button id="btn-new-game" class="btn-icon-action" title="Sortear novo tabuleiro variado">
+        🔄 Nova Partida
+      </button>
+    </div>
+  </header>
+
+  <!-- Clean Single-Column Centered Game Stage -->
+  <main class="stage-container">
+    <!-- Top Scoreboard & Possession Bar -->
+    <section class="hud-header">
+      <!-- Standard 2-Player HUD (vs IA, Mesma Tela, Online) -->
+      <div id="hud-versus" class="hud-versus">
+        <div class="hud-timers-row">
+          <div class="clock-box p1-clock-box active-turn" id="p1-timer-box">
+            <span class="clock-digits" id="p1-clock">4:00</span>
+            <span class="player-mini-tag" id="p1-tag">AZUL</span>
+          </div>
+
+          <div class="center-score">
+            <span class="score-p1" id="p1-hex-count">0</span>
+            <span class="score-dash">-</span>
+            <span class="score-p2" id="p2-hex-count">0</span>
+          </div>
+
+          <div class="clock-box p2-clock-box" id="p2-timer-box">
+            <span class="clock-digits" id="p2-clock">4:00</span>
+            <span class="player-mini-tag" id="p2-tag">IA ARGON</span>
+          </div>
+        </div>
+
+        <div class="possession-track">
+          <div class="pos-bar-blue" id="p1-pos-bar" style="width: 50%;"></div>
+          <div class="pos-bar-sep"></div>
+          <div class="pos-bar-red" id="p2-pos-bar" style="width: 50%;"></div>
+        </div>
+
+        <div class="possession-meta-row">
+          <span id="p1-pos-pct">50%</span>
+          <span class="pos-center-label">POSSESSION</span>
+          <span id="p2-pos-pct">50%</span>
+        </div>
+      </div>
+
+      <!-- Daily Challenge HUD (Shown only in "Desafio Diário" mode) -->
+      <div id="hud-daily" class="hud-daily" hidden>
+        <div class="daily-stats-row">
+          <div class="daily-stat">
+            <span class="daily-label">HEXÁGONOS</span>
+            <span class="daily-val"><span id="daily-hex-claimed">0</span>/31</span>
+          </div>
+          <div class="daily-stat highlight">
+            <span class="daily-label">PONTUAÇÃO</span>
+            <span class="daily-val" id="daily-score">0</span>
+          </div>
+          <div class="daily-stat">
+            <span class="daily-label">JOGADAS RESTANTES</span>
+            <span class="daily-val" id="daily-moves-left">10</span>
+          </div>
+        </div>
+        <div class="possession-track">
+          <div class="pos-bar-blue" id="daily-progress-bar" style="width: 0%;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 31-Hex Honeycomb Grid Centered -->
+    <section class="board-viewport">
+      <div id="hex-board" class="hex-board" aria-label="Tabuleiro de 31 Hexágonos"></div>
+    </section>
+
+    <!-- Bottom Search Input (Matches "Select A Hex To Start Your Move...") -->
+    <section class="bottom-input-bar">
+      <div class="input-card" id="search-box-wrapper">
+        <div class="selected-hex-chip" id="selected-hex-pill" hidden>
+          <span id="selected-hex-title">FLAMENGO</span>
+          <button id="btn-clear-hex" class="chip-close" title="Desmarcar">✕</button>
+        </div>
+
+        <input
+          type="text"
+          id="player-search-input"
+          class="player-search-input"
+          placeholder="Select A Hex To Start Your Move..."
+          autocomplete="off"
+          disabled
+        />
+
+        <!-- Toast feedback inside bar -->
+        <span id="move-toast" class="move-toast" hidden></span>
+
+        <!-- Autocomplete Dropdown -->
+        <div id="autocomplete-dropdown" class="autocomplete-dropdown" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Online Match Lobby (Gerar ou Entrar com Código) -->
+  <div id="modal-online" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-top">
+        <h2>🌐 Partida Online</h2>
+        <button id="btn-close-online" class="modal-close">✕</button>
+      </div>
+
+      <div class="online-lobby-grid">
+        <div class="lobby-box">
+          <h3>Criar Nova Sala</h3>
+          <p>Gere um código único de partida para compartilhar com seu adversário.</p>
+          <div class="generated-code-display" id="generated-code-display">BR-7492</div>
+          <div class="lobby-actions">
+            <button id="btn-copy-lobby-code" class="btn-secondary">📋 Copiar Código</button>
+            <button id="btn-start-host" class="btn-primary">Entrar como Azul (P1)</button>
+          </div>
+        </div>
+
+        <div class="lobby-divider">OU</div>
+
+        <div class="lobby-box">
+          <h3>Entrar com Código</h3>
+          <p>Digite o código gerado pelo seu amigo para carregar o mesmo tabuleiro sincronizado.</p>
+          <input
+            type="text"
+            id="join-code-input"
+            class="code-input"
+            placeholder="Ex: BR-7492"
+            maxlength="12"
+          />
+          <div class="lobby-actions">
+            <button id="btn-join-guest" class="btn-primary">Conectar na Partida</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: End of Match + Post-Game Tactical Inspector & Move Analysis -->
+  <div id="modal-gameover" class="modal-backdrop" hidden>
+    <div class="modal-card modal-gameover-card">
+      <div class="gameover-badge" id="gameover-badge">🏆</div>
+      <h2 id="gameover-title">Fim de Jogo!</h2>
+      <p id="gameover-subtitle" class="gameover-sub"></p>
+
+      <div class="gameover-score-box" id="gameover-score-box">
+        <div class="go-team go-p1">
+          <span class="go-label" id="go-p1-label">AZUL</span>
+          <span class="go-val" id="go-p1-score">16</span>
+          <span class="go-pct" id="go-p1-pct">52%</span>
+        </div>
+        <div class="go-vs">VS</div>
+        <div class="go-team go-p2">
+          <span class="go-label" id="go-p2-label">VERMELHO</span>
+          <span class="go-val" id="go-p2-score">15</span>
+          <span class="go-pct" id="go-p2-pct">48%</span>
+        </div>
+      </div>
+
+      <!-- Post-Match Tactical Inspector & Turn-by-Turn Review -->
+      <div class="postmatch-analysis-section">
+        <div class="postmatch-tabs">
+          <button class="pm-tab active" data-pmtab="pm-moves">🎯 Análise das Jogadas</button>
+          <button class="pm-tab" data-pmtab="pm-board">🔍 Inspetor do Tabuleiro Final</button>
+        </div>
+
+        <!-- Tab 1: Move-by-Move Tactical Comparison (What was played vs Best AI Combo) -->
+        <div id="pm-moves" class="pm-pane">
+          <div id="postmatch-moves-list" class="postmatch-moves-list"></div>
+        </div>
+
+        <!-- Tab 2: Final Board Hex Inspector (Remaining / Claimed Hexes & Best Possible Players) -->
+        <div id="pm-board" class="pm-pane" hidden>
+          <div id="postmatch-board-inspector" class="postmatch-moves-list"></div>
+        </div>
+      </div>
+
+      <div class="gameover-actions">
+        <button id="btn-play-again" class="btn-primary">🔄 Nova Partida</button>
+        <button id="btn-close-gameover" class="btn-secondary">Ver Tabuleiro</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/players_wikidata.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
